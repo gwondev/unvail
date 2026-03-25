@@ -15,22 +15,47 @@ function Signup() {
     agree: false
   });
 
-  const handleSignup = () => {
-    // 필수 입력값 체크 로직
+  // 백엔드와 통신하는 함수입니다!
+  const handleSignup = async () => {
+    // 1. 필수 입력값 체크
     if (!formData.email || !formData.name || !formData.password || !formData.agree) {
       alert("모든 정보를 입력하고 약관에 동의해주세요.");
       return;
     }
-    
-    // 사장님! 나중에 여기서 백엔드 가입 API를 호출할 거예요.
-    alert("회원가입이 완료되었습니다! 로그인해주세요.");
-    navigate("/login");
+
+    // 2. 백엔드 User 엔티티 구조에 맞게 데이터 변환
+    const signupData = {
+      username: formData.name, // 리액트의 'name'을 백엔드의 'username'으로 매핑
+      email: formData.email,
+      password: formData.password
+    };
+
+    try {
+      // 3. 백엔드 API 호출 (포트 8080)
+      const response = await fetch('http://localhost:8080/api/users/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(signupData),
+      });
+
+      if (response.ok) {
+        const message = await response.text();
+        alert(message); // "회원가입 성공!" 메시지 출력
+        navigate("/login");
+      } else {
+        alert("회원가입 실패: 서버 응답 에러");
+      }
+    } catch (error) {
+      console.error("연결 에러:", error);
+      alert("백엔드 서버와 연결할 수 없습니다. 서버가 켜져 있는지 확인해주세요!");
+    }
   };
 
   return (
     <Container maxWidth="xs">
       <Box sx={{ mt: 10, mb: 10, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-        {/* 상단 로고 */}
         <Box sx={{ bgcolor: 'black', color: 'white', p: 1.5, borderRadius: 2, display: 'inline-flex', mb: 2 }}>
           <ShieldCheck size={32} />
         </Box>
@@ -41,7 +66,6 @@ function Signup() {
         </Typography>
 
         <Stack spacing={2.5} sx={{ width: "100%" }}>
-          {/* 아이디(이메일) */}
           <Box sx={{ textAlign: 'left' }}>
             <Typography variant="caption" fontWeight="bold" sx={{ mb: 0.5, display: 'block', ml: 0.5 }}>아이디 (이메일)</Typography>
             <TextField fullWidth placeholder="example@email.com" 
@@ -54,7 +78,6 @@ function Signup() {
             />
           </Box>
 
-          {/* 이름 */}
           <Box sx={{ textAlign: 'left' }}>
             <Typography variant="caption" fontWeight="bold" sx={{ mb: 0.5, display: 'block', ml: 0.5 }}>이름</Typography>
             <TextField fullWidth placeholder="홍길동" 
@@ -67,7 +90,6 @@ function Signup() {
             />
           </Box>
 
-          {/* 비밀번호 */}
           <Box sx={{ textAlign: 'left' }}>
             <Typography variant="caption" fontWeight="bold" sx={{ mb: 0.5, display: 'block', ml: 0.5 }}>비밀번호</Typography>
             <TextField fullWidth type="password" placeholder="영문, 숫자 포함 8자 이상" 
@@ -81,7 +103,6 @@ function Signup() {
             />
           </Box>
 
-          {/* 약관 동의 */}
           <FormControlLabel
             control={<Checkbox checked={formData.agree} color="primary" onChange={(e) => setFormData({...formData, agree: e.target.checked})} />}
             label={<Typography variant="body2">(필수) 이용약관 및 개인정보 수집·이용에 동의합니다.</Typography>}

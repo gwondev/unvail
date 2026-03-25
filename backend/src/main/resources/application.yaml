@@ -1,3 +1,15 @@
 spring:
-  application:
-    name: unvail
+  datasource:
+    url: jdbc:mysql://localhost:3306/unvail_db?serverTimezone=Asia/Seoul
+    username: root
+    password: zezroya1126!
+  
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update # 자바 코드를 짜면 DB 테이블이 자동으로 생김
+    show-sql: true # 실행되는 SQL을 콘솔창에 보여줌
+    properties:
+      hibernate:
+        format_sql: true
