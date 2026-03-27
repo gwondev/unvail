@@ -4,16 +4,7 @@ services:
     container_name: unvail-backend
     build: ./backend
     env_file:
-      - ../.env.production
-    environment:
-      - DB_HOST=gwon-db
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=unvail
-      - DB_USERNAME=root
-      - DB_PASSWORD=${DB_PASSWORD}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID_UNVAIL}
-      - GEMINI_API_KEY=${UNVAIL_GEMINI_API_KEY}
-      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - ./.env.production
     expose:
       - "8080"
     networks:
@@ -24,11 +15,9 @@ services:
     container_name: unvail-frontend
     build: ./frontend
     env_file:
-      - ../.env.production
+      - ./.env.production
     environment:
       - PORT=5173
-      - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID_UNVAIL}
-      - VITE_API_BASE_URL=/api
     expose:
       - "5173"
     networks:
