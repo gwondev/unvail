@@ -102,7 +102,7 @@ const Analyze = () => {
             {previewUrls.length > 0 ? (
               <Grid container spacing={1} justifyContent="center">
                 {previewUrls.map((url) => (
-                  <Grid item key={url}>
+                  <Grid key={url}>
                     <Box
                       component="img"
                       src={url}
@@ -172,7 +172,7 @@ const Analyze = () => {
 
       {/* 하단 안내 카드 그리드 */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
               <ImageIcon size={20} color="#6b7280" />
@@ -183,7 +183,7 @@ const Analyze = () => {
             </Typography>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
               <CheckCircle size={20} color="#10b981" />
@@ -194,7 +194,7 @@ const Analyze = () => {
             </Typography>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ p: 3, borderRadius: 3, height: '100%', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
               <Zap size={20} color="#f59e0b" />

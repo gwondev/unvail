@@ -28,6 +28,7 @@ function Login() {
       localStorage.setItem("idToken", credential);
       localStorage.setItem("nickname", data.nickname || "");
       localStorage.setItem("remainingCalls", String(data.remainingCalls ?? 0));
+      localStorage.setItem("role", data.role || "USER");
       navigate("/");
     } catch (error) {
       alert("구글 로그인 처리 중 오류가 발생했습니다.");
@@ -68,6 +69,7 @@ function Login() {
       localStorage.setItem("idToken", idToken);
       localStorage.setItem("nickname", data.nickname || nickname.trim());
       localStorage.setItem("remainingCalls", String(data.remainingCalls ?? 20));
+      localStorage.setItem("role", data.role || "USER");
       alert("가입 완료되었습니다.");
       navigate("/");
     } catch (error) {

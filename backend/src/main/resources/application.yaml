@@ -18,3 +18,5 @@ app:
     client-id: ${GOOGLE_CLIENT_ID}
   gemini:
     api-key: ${GEMINI_API_KEY}
+  admin:
+    emails: ${ADMIN_EMAILS:}

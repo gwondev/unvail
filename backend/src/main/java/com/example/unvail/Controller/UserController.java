@@ -1,6 +1,10 @@
 package com.example.unvail.Controller;
 
+import com.example.unvail.entity.CommunityPost;
+import com.example.unvail.entity.ShopItem;
 import com.example.unvail.entity.User;
+import com.example.unvail.repository.CommunityPostRepository;
+import com.example.unvail.repository.ShopItemRepository;
 import com.example.unvail.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -14,6 +18,7 @@ import java.util.*;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -21,6 +26,8 @@ public class UserController {
 
     private static final Pattern GRADE_PATTERN = Pattern.compile("\\b([A-F])\\b");
     private final UserRepository userRepository;
+    private final CommunityPostRepository communityPostRepository;
+    private final ShopItemRepository shopItemRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${app.google.client-id}")
@@ -29,8 +36,17 @@ public class UserController {
     @Value("${app.gemini.api-key}")
     private String geminiApiKey;
 
-    public UserController(UserRepository userRepository) {
+    @Value("${app.admin.emails:}")
+    private String adminEmails;
+
+    public UserController(
+            UserRepository userRepository,
+            CommunityPostRepository communityPostRepository,
+            ShopItemRepository shopItemRepository
+    ) {
         this.userRepository = userRepository;
+        this.communityPostRepository = communityPostRepository;
+        this.shopItemRepository = shopItemRepository;
     }
 
     @PostMapping("/auth/google/login")
@@ -66,6 +82,7 @@ public class UserController {
                 .email(tokenInfo.email())
                 .nickname(nickname)
                 .geminiRemainingCalls(20)
+                .role(isAdminEmail(tokenInfo.email()) ? User.Role.ADMIN : User.Role.USER)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -103,21 +120,146 @@ public class UserController {
     }
 
     @GetMapping("/community/posts")
-    public List<Map<String, Object>> dummyCommunityPosts() {
-        return List.of(
-                Map.of("id", 1, "title", "무난한 생활용품 추천", "author", "cleanbuyer", "likes", 12),
-                Map.of("id", 2, "title", "이번 주 안전 등급 A 받은 제품", "author", "eco_dad", "likes", 21),
-                Map.of("id", 3, "title", "광고 느낌 강한 상품 걸러내기 팁", "author", "honestpick", "likes", 8)
-        );
+    public List<CommunityPost> communityPosts() {
+        seedCommunityPostsIfEmpty();
+        return communityPostRepository.findAll();
+    }
+
+    @PostMapping("/community/posts")
+    public CommunityPost createCommunityPost(
+            @RequestHeader("X-Id-Token") String idToken,
+            @RequestBody CommunityPostRequest request
+    ) {
+        User user = findUserByIdToken(idToken);
+        CommunityPost post = CommunityPost.builder()
+                .title(request.title())
+                .content(request.content())
+                .authorNickname(user.getNickname())
+                .likes(0)
+                .build();
+        return communityPostRepository.save(post);
     }
 
     @GetMapping("/shop/items")
-    public List<Map<String, Object>> dummyShopItems() {
-        return List.of(
-                Map.of("id", 1, "name", "친환경 주방세제", "grade", "A", "price", 7900),
-                Map.of("id", 2, "name", "저자극 바디워시", "grade", "B", "price", 11900),
-                Map.of("id", 3, "name", "무향 세탁세제", "grade", "A", "price", 13900)
-        );
+    public List<ShopItem> shopItems() {
+        seedShopItemsIfEmpty();
+        return shopItemRepository.findAll();
+    }
+
+    @GetMapping("/admin/users")
+    public List<User> adminUsers(@RequestHeader("X-Id-Token") String idToken) {
+        requireAdmin(idToken);
+        return userRepository.findAll();
+    }
+
+    @PutMapping("/admin/users/{id}")
+    public User adminUpdateUser(
+            @RequestHeader("X-Id-Token") String idToken,
+            @PathVariable Long id,
+            @RequestBody AdminUserUpdateRequest request
+    ) {
+        requireAdmin(idToken);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "유저를 찾을 수 없습니다."));
+        if (request.nickname() != null && !request.nickname().isBlank()) {
+            user.setNickname(request.nickname().trim());
+        }
+        if (request.geminiRemainingCalls() != null && request.geminiRemainingCalls() >= 0) {
+            user.setGeminiRemainingCalls(request.geminiRemainingCalls());
+        }
+        if (request.role() != null && !request.role().isBlank()) {
+            user.setRole(User.Role.valueOf(request.role().toUpperCase()));
+        }
+        return userRepository.save(user);
+    }
+
+    @GetMapping("/admin/community/posts")
+    public List<CommunityPost> adminCommunityPosts(@RequestHeader("X-Id-Token") String idToken) {
+        requireAdmin(idToken);
+        return communityPostRepository.findAll();
+    }
+
+    @PostMapping("/admin/community/posts")
+    public CommunityPost adminCreateCommunityPost(
+            @RequestHeader("X-Id-Token") String idToken,
+            @RequestBody AdminCommunityPostRequest request
+    ) {
+        User admin = requireAdmin(idToken);
+        CommunityPost post = CommunityPost.builder()
+                .title(request.title())
+                .content(request.content())
+                .authorNickname(
+                        request.authorNickname() == null || request.authorNickname().isBlank()
+                                ? admin.getNickname() : request.authorNickname()
+                )
+                .likes(request.likes() == null ? 0 : request.likes())
+                .build();
+        return communityPostRepository.save(post);
+    }
+
+    @PutMapping("/admin/community/posts/{id}")
+    public CommunityPost adminUpdateCommunityPost(
+            @RequestHeader("X-Id-Token") String idToken,
+            @PathVariable Long id,
+            @RequestBody AdminCommunityPostRequest request
+    ) {
+        requireAdmin(idToken);
+        CommunityPost post = communityPostRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+        if (request.title() != null) post.setTitle(request.title());
+        if (request.content() != null) post.setContent(request.content());
+        if (request.authorNickname() != null) post.setAuthorNickname(request.authorNickname());
+        if (request.likes() != null) post.setLikes(request.likes());
+        return communityPostRepository.save(post);
+    }
+
+    @DeleteMapping("/admin/community/posts/{id}")
+    public void adminDeleteCommunityPost(@RequestHeader("X-Id-Token") String idToken, @PathVariable Long id) {
+        requireAdmin(idToken);
+        communityPostRepository.deleteById(id);
+    }
+
+    @GetMapping("/admin/shop/items")
+    public List<ShopItem> adminShopItems(@RequestHeader("X-Id-Token") String idToken) {
+        requireAdmin(idToken);
+        return shopItemRepository.findAll();
+    }
+
+    @PostMapping("/admin/shop/items")
+    public ShopItem adminCreateShopItem(
+            @RequestHeader("X-Id-Token") String idToken,
+            @RequestBody AdminShopItemRequest request
+    ) {
+        requireAdmin(idToken);
+        ShopItem item = ShopItem.builder()
+                .name(request.name())
+                .grade(request.grade())
+                .price(request.price())
+                .description(request.description())
+                .build();
+        return shopItemRepository.save(item);
+    }
+
+    @PutMapping("/admin/shop/items/{id}")
+    public ShopItem adminUpdateShopItem(
+            @RequestHeader("X-Id-Token") String idToken,
+            @PathVariable Long id,
+            @RequestBody AdminShopItemRequest request
+    ) {
+        requireAdmin(idToken);
+        ShopItem item = shopItemRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "상품이 없습니다."));
+        if (request.name() != null) item.setName(request.name());
+        if (request.grade() != null) item.setGrade(request.grade());
+        if (request.price() != null) item.setPrice(request.price());
+        if (request.description() != null) item.setDescription(request.description());
+        return shopItemRepository.save(item);
+    }
+
+    @DeleteMapping("/admin/shop/items/{id}")
+    public void adminDeleteShopItem(@RequestHeader("X-Id-Token") String idToken, @PathVariable Long id) {
+        requireAdmin(idToken);
+        shopItemRepository.deleteById(id);
     }
 
     private Map<String, Object> buildAuthResponse(User user, boolean needsSignup) {
@@ -125,7 +267,8 @@ public class UserController {
                 "needsSignup", needsSignup,
                 "nickname", user.getNickname(),
                 "email", user.getEmail() == null ? "" : user.getEmail(),
-                "remainingCalls", user.getGeminiRemainingCalls()
+                "remainingCalls", user.getGeminiRemainingCalls(),
+                "role", user.getRole().name()
         );
     }
 
@@ -225,7 +368,68 @@ public class UserController {
         return null;
     }
 
+    private User findUserByIdToken(String idToken) {
+        GoogleTokenInfo tokenInfo = verifyGoogleToken(idToken);
+        return userRepository.findByGoogleSub(tokenInfo.sub())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "회원가입이 필요합니다."));
+    }
+
+    private User requireAdmin(String idToken) {
+        User user = findUserByIdToken(idToken);
+        if (user.getRole() != User.Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자 권한이 필요합니다.");
+        }
+        return user;
+    }
+
+    private boolean isAdminEmail(String email) {
+        if (email == null || email.isBlank() || adminEmails == null || adminEmails.isBlank()) {
+            return false;
+        }
+        Set<String> adminEmailSet = Arrays.stream(adminEmails.split(","))
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .collect(Collectors.toSet());
+        return adminEmailSet.contains(email);
+    }
+
+    private void seedCommunityPostsIfEmpty() {
+        if (communityPostRepository.count() > 0) return;
+        communityPostRepository.save(CommunityPost.builder()
+                .title("무난한 생활용품 추천")
+                .content("실사용 기준으로 자극 적은 제품 공유해요.")
+                .authorNickname("cleanbuyer")
+                .likes(12)
+                .build());
+        communityPostRepository.save(CommunityPost.builder()
+                .title("이번 주 안전 등급 A 받은 제품")
+                .content("성분과 후기 기준으로 A 등급 제품 모음입니다.")
+                .authorNickname("eco_dad")
+                .likes(21)
+                .build());
+    }
+
+    private void seedShopItemsIfEmpty() {
+        if (shopItemRepository.count() > 0) return;
+        shopItemRepository.save(ShopItem.builder()
+                .name("친환경 주방세제")
+                .grade("A")
+                .price(7900)
+                .description("잔류 세정 성분 부담을 줄인 제품")
+                .build());
+        shopItemRepository.save(ShopItem.builder()
+                .name("저자극 바디워시")
+                .grade("B")
+                .price(11900)
+                .description("향료 자극을 줄인 데일리 바디워시")
+                .build());
+    }
+
     public record GoogleAuthRequest(String idToken) {}
     public record GoogleSignupRequest(String idToken, String nickname) {}
     public record GoogleTokenInfo(String sub, String email) {}
+    public record CommunityPostRequest(String title, String content) {}
+    public record AdminUserUpdateRequest(String nickname, Integer geminiRemainingCalls, String role) {}
+    public record AdminCommunityPostRequest(String title, String content, String authorNickname, Integer likes) {}
+    public record AdminShopItemRequest(String name, String grade, Integer price, String description) {}
 }

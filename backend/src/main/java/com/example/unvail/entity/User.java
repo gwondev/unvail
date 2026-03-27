@@ -13,6 +13,10 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class User {
+    public enum Role {
+        USER,
+        ADMIN
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,6 +34,11 @@ public class User {
     @Builder.Default
     @Column(nullable = false)
     private Integer geminiRemainingCalls = 20;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Role role = Role.USER;
 
     @Column(name = "created_at", updatable = false)
     private java.time.LocalDateTime createdAt;
