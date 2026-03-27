@@ -6,6 +6,8 @@ import com.example.unvail.entity.User;
 import com.example.unvail.repository.CommunityPostRepository;
 import com.example.unvail.repository.ShopItemRepository;
 import com.example.unvail.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 public class UserController {
 
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
     private static final Pattern GRADE_PATTERN = Pattern.compile("\\b([A-F])\\b");
     private final UserRepository userRepository;
     private final CommunityPostRepository communityPostRepository;
@@ -36,6 +39,9 @@ public class UserController {
 
     @Value("${app.gemini.api-key}")
     private String geminiApiKey;
+
+    @Value("${app.gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
 
     @Value("${app.admin.emails:}")
     private String adminEmails;
@@ -107,6 +113,7 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, "Gemini 호출 횟수를 모두 사용했습니다.");
         }
 
+        log.info("Analyze request received. files={}, user={}", files.length, user.getNickname());
         String resultText = requestGeminiWithGoogleSearch(files);
         String grade = extractGrade(resultText);
 
@@ -298,7 +305,7 @@ public class UserController {
     }
 
     private String requestGeminiWithGoogleSearch(MultipartFile[] files) throws IOException {
-        String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey;
+        String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + geminiModel + ":generateContent?key=" + geminiApiKey;
 
         List<Map<String, Object>> parts = new ArrayList<>();
         parts.add(Map.of(
@@ -356,8 +363,10 @@ public class UserController {
             if (detail.length() > 300) {
                 detail = detail.substring(0, 300);
             }
+            log.error("Gemini API error status={} body={}", e.getRawStatusCode(), detail);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini API 오류: " + detail);
         } catch (Exception e) {
+            log.error("Gemini call failed", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 호출 실패: " + e.getMessage());
         }
     }
@@ -397,6 +406,17 @@ public class UserController {
             return map;
         }
         return null;
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException e) {
+        HttpStatusCode status = e.getStatusCode();
+        String message = e.getReason() == null ? "요청 처리 중 오류가 발생했습니다." : e.getReason();
+        return ResponseEntity.status(status).body(Map.of(
+                "status", status.value(),
+                "error", status.toString(),
+                "message", message
+        ));
     }
 
     private User findUserByIdToken(String idToken) {

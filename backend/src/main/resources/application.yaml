@@ -18,5 +18,6 @@ app:
     client-id: ${GOOGLE_CLIENT_ID:392628599507-md93s85gite0hnohg13ke18jnftes003.apps.googleusercontent.com}
   gemini:
     api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
   admin:
     emails: ${ADMIN_EMAILS:}
