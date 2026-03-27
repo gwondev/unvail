@@ -27,3 +27,5 @@ services:
 
 networks:
   global_network:
+    external: true
+    name: global_network
