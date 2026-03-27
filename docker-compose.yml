@@ -1,34 +1,29 @@
 services:
   backend:
-    restart: always # 꺼지면 재시작
-    container_name: devsign-backend
-    build: ./backend # devsign/backend 경로에 있는 Dockerfile로 이미지 빌드
+    restart: always
+    container_name: unvail-backend
+    build: ./backend
+    env_file:
+      - .env.production
+    expose:
+      - "8080"
     networks:
       - global_network
 
   frontend:
     restart: always
-    container_name: devsign-frontend
+    container_name: unvail-frontend
     build: ./frontend
-    networks:
-      - global_network
-
-  db:
-    restart: always
-    container_name: devsign-database
-    image: mysql:latest
+    env_file:
+      - .env.production
     environment:
-      MYSQL_ROOT_PASSWORD: devsign4122! #모든 권한을 가진 비밀번호
-      MYSQL_DATABASE: devsigndb #자동으로 생성될 DB 이름
-      MYSQL_USER: devsignuser #일반 사용자 이름
-      MYSQL_PASSWORD: devsign4122 #일반 사용자의 비밀번호입니다.
-    volumes:
-      - db_data:/var/lib/mysql
+      - PORT=5173
+    expose:
+      - "5173"
     networks:
       - global_network
 
-volumes:
-  db_data:
+
 
 networks:
   global_network:

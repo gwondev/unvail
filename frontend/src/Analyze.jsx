@@ -14,16 +14,54 @@ import {
   CheckCircle, 
   Zap 
 } from "lucide-react";
+import { API_BASE_URL } from "./config";
 
 const Analyze = () => {
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewUrls, setPreviewUrls] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // 사진 선택 시 미리보기 생성 핸들러
   const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // 로컬 환경에서 테스트하기 위해 임시 URL 생성
-      setPreviewUrl(URL.createObjectURL(file));
+    const selected = Array.from(event.target.files || []);
+    setFiles(selected);
+    setPreviewUrls(selected.map((file) => URL.createObjectURL(file)));
+    setAnalysis(null);
+  };
+
+  const handleAnalyze = async () => {
+    if (!files.length) {
+      alert("분석할 이미지를 먼저 선택해주세요.");
+      return;
+    }
+    const idToken = localStorage.getItem("idToken");
+    if (!idToken) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("idToken", idToken);
+    files.forEach((file) => formData.append("files", file));
+
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/analyze`, {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        alert(text || "분석 실패");
+        return;
+      }
+      const data = await response.json();
+      setAnalysis(data);
+      localStorage.setItem("remainingCalls", String(data.remainingCalls ?? 0));
+    } catch (error) {
+      alert("분석 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,7 +73,7 @@ const Analyze = () => {
           제품 안전성 분석
         </Typography>
         <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400 }}>
-          제품 스크린샷을 업로드하면 AI가 자동으로 안전성을 분석합니다
+          여러 장을 올리면 Gemini + Google 검색으로 신뢰 등급을 분석합니다
         </Typography>
       </Box>
 
@@ -56,16 +94,23 @@ const Analyze = () => {
           style={{ display: "none" }}
           id="upload-button"
           type="file"
+          multiple
           onChange={handleFileChange}
         />
         <label htmlFor="upload-button">
           <Stack spacing={3} alignItems="center" sx={{ cursor: "pointer" }}>
-            {previewUrl ? (
-              <Box 
-                component="img" 
-                src={previewUrl} 
-                sx={{ maxWidth: "100%", maxHeight: 350, borderRadius: 2, boxShadow: 3 }} 
-              />
+            {previewUrls.length > 0 ? (
+              <Grid container spacing={1} justifyContent="center">
+                {previewUrls.map((url) => (
+                  <Grid item key={url}>
+                    <Box
+                      component="img"
+                      src={url}
+                      sx={{ width: 160, height: 120, objectFit: "cover", borderRadius: 2, boxShadow: 2 }}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
             ) : (
               <Box sx={{ bgcolor: "#f9fafb", p: 4, borderRadius: "50%", display: 'flex' }}>
                 <Upload size={48} color="#9ca3af" />
@@ -96,13 +141,34 @@ const Analyze = () => {
             >
               파일 선택
             </Button>
-            
+            <Button
+              variant="outlined"
+              onClick={handleAnalyze}
+              disabled={loading}
+              sx={{ px: 5, py: 1.5, borderRadius: 2 }}
+            >
+              {loading ? "분석중..." : "분석 시작"}
+            </Button>
             <Typography variant="caption" color="text.secondary">
-              지원 형식: JPG, PNG, WEBP (최대 10MB)
+              지원 형식: JPG, PNG, WEBP (다중 업로드)
             </Typography>
           </Stack>
         </label>
       </Card>
+
+      {analysis && (
+        <Card sx={{ p: 4, borderRadius: 4, mb: 6 }}>
+          <Typography variant="h5" fontWeight={800} gutterBottom>
+            분석 결과: {analysis.grade} 등급
+          </Typography>
+          <Typography variant="body1" sx={{ whiteSpace: "pre-line" }}>
+            {analysis.result}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            남은 Gemini 호출 횟수: {analysis.remainingCalls}
+          </Typography>
+        </Card>
+      )}
 
       {/* 하단 안내 카드 그리드 */}
       <Grid container spacing={3}>

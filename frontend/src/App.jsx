@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { 
   ThemeProvider, 
@@ -25,6 +25,7 @@ import {
 import Analyze from "./Analyze";
 import Login from "./Login"; // 새로 만들 로그인 컴포넌트
 import Signup from "./Signup"; //회원가입 부분
+import { API_BASE_URL } from "./config";
 
 const theme = createTheme({
   typography: {
@@ -164,6 +165,66 @@ function Home() {
   );
 }
 
+function CommunityPage() {
+  const [posts, setPosts] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/community/posts`)
+      .then((res) => res.json())
+      .then((data) => setPosts(Array.isArray(data) ? data : []))
+      .catch(() => setPosts([]));
+  }, []);
+
+  return (
+    <>
+      <Header />
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>커뮤니티</Typography>
+        <Stack spacing={2}>
+          {posts.map((post) => (
+            <Card key={post.id} sx={{ p: 2.5 }}>
+              <Typography variant="h6" fontWeight={700}>{post.title}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {post.author} · 좋아요 {post.likes}
+              </Typography>
+            </Card>
+          ))}
+        </Stack>
+      </Container>
+    </>
+  );
+}
+
+function ShopPage() {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/shop/items`)
+      .then((res) => res.json())
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setItems([]));
+  }, []);
+
+  return (
+    <>
+      <Header />
+      <Container maxWidth="md" sx={{ py: 6 }}>
+        <Typography variant="h4" fontWeight={800} sx={{ mb: 3 }}>착한기업 샵</Typography>
+        <Stack spacing={2}>
+          {items.map((item) => (
+            <Card key={item.id} sx={{ p: 2.5 }}>
+              <Typography variant="h6" fontWeight={700}>{item.name}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                등급 {item.grade} · {item.price.toLocaleString()}원
+              </Typography>
+            </Card>
+          ))}
+        </Stack>
+      </Container>
+    </>
+  );
+}
+
 // 최종 App 컴포넌트
 function App() {
   return (
@@ -173,9 +234,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/analyze" element={<Analyze />} /> 
-          <Route path="/login" element={<Login />} /> {/* 로그인 컴포넌트 연결 */}
-          <Route path="/community" element={<div><Header />커뮤니티 페이지</div>} />
-          <Route path="/shop" element={<div><Header />착한기업 샵 페이지</div>} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/community" element={<CommunityPage />} />
+          <Route path="/shop" element={<ShopPage />} />
           <Route path="/signup" element={<Signup />} /> {/* 가입 경로 추가! */}
         </Routes>
       </div>
