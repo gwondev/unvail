@@ -6,5 +6,10 @@ export default defineConfig({
     react({
       include: /\.[jt]sx?$/
     })
-  ]
+  ],
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+    allowedHosts: ["unvail.gwon.run"]
+  }
 });
