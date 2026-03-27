@@ -15,8 +15,8 @@ spring:
 
 app:
   google:
-    client-id: ${GOOGLE_CLIENT_ID}
+    client-id: ${GOOGLE_CLIENT_ID:392628599507-md93s85gite0hnohg13ke18jnftes003.apps.googleusercontent.com}
   gemini:
-    api-key: ${GEMINI_API_KEY}
+    api-key: ${GEMINI_API_KEY:}
   admin:
     emails: ${ADMIN_EMAILS:}
