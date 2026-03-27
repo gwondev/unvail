@@ -52,7 +52,14 @@ const Analyze = () => {
       });
       if (!response.ok) {
         const text = await response.text();
-        alert(text || "분석 실패");
+        let message = text;
+        try {
+          const parsed = JSON.parse(text);
+          message = parsed.message || parsed.error || text;
+        } catch {
+          // keep raw text
+        }
+        alert(message || "분석 실패");
         return;
       }
       const data = await response.json();

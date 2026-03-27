@@ -9,6 +9,7 @@ import com.example.unvail.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
@@ -315,20 +316,50 @@ public class UserController {
             ));
         }
 
-        Map<String, Object> payload = Map.of(
+        Map<String, Object> payloadWithSearch = Map.of(
                 "contents", List.of(Map.of("role", "user", "parts", parts)),
-                "tools", List.of(Map.of("google_search", Map.of()))
+                "tools", List.of(Map.of("googleSearch", Map.of()))
+        );
+        Map<String, Object> payloadFallback = Map.of(
+                "contents", List.of(Map.of("role", "user", "parts", parts))
         );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<Object> response = restTemplate.exchange(endpoint, Objects.requireNonNull(HttpMethod.POST), entity, Object.class);
-        Map<?, ?> body = toWildcardMap(response.getBody());
-        if (!response.getStatusCode().is2xxSuccessful() || body == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 분석 실패");
+
+        Map<?, ?> body;
+        try {
+            body = callGemini(endpoint, payloadWithSearch, headers);
+        } catch (ResponseStatusException e) {
+            body = callGemini(endpoint, payloadFallback, headers);
         }
         return extractGeminiText(body);
+    }
+
+    private Map<?, ?> callGemini(String endpoint, Map<String, Object> payload, HttpHeaders headers) {
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+        try {
+            ResponseEntity<Object> response = restTemplate.exchange(
+                    endpoint,
+                    Objects.requireNonNull(HttpMethod.POST),
+                    entity,
+                    Object.class
+            );
+            Map<?, ?> body = toWildcardMap(response.getBody());
+            if (!response.getStatusCode().is2xxSuccessful() || body == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 응답이 비어 있습니다.");
+            }
+            return body;
+        } catch (RestClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            String detail = body == null || body.isBlank() ? e.getMessage() : body;
+            if (detail.length() > 300) {
+                detail = detail.substring(0, 300);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini API 오류: " + detail);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 호출 실패: " + e.getMessage());
+        }
     }
 
     private String extractGeminiText(Map<?, ?> responseBody) {
