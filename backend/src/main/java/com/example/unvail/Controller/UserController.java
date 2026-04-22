@@ -115,14 +115,17 @@ public class UserController {
 
         log.info("Analyze request received. files={}, user={}", files.length, user.getNickname());
         String resultText = requestGeminiWithGoogleSearch(files);
+        String normalizedResultText = normalizeResultText(resultText);
         String grade = extractGrade(resultText);
+        List<String> recognizedCompanies = extractRecognizedCompanies(normalizedResultText);
 
         user.setGeminiRemainingCalls(user.getGeminiRemainingCalls() - 1);
         userRepository.save(user);
 
         return Map.of(
                 "grade", grade,
-                "result", resultText,
+                "result", normalizedResultText,
+                "recognizedCompanies", recognizedCompanies,
                 "remainingCalls", user.getGeminiRemainingCalls()
         );
     }
@@ -310,8 +313,12 @@ public class UserController {
         List<Map<String, Object>> parts = new ArrayList<>();
         parts.add(Map.of(
                 "text",
-                "업로드된 이미지를 종합 분석해서 기업/업체/제품 신뢰도를 A~F 한 글자로 먼저 제시하고, 바로 다음 줄부터 근거 3가지를 한국어로 간단히 써줘. " +
-                        "구글 검색 결과를 적극 활용해서 사실 기반으로 판단해줘."
+                "업로드된 이미지를 종합 분석해서 아래 형식을 반드시 지켜서 한국어로 답해줘.\n" +
+                        "1) 첫 줄: 인식 성공 기업: 기업명1, 기업명2 (없으면 '없음')\n" +
+                        "2) 둘째 줄: A~F 중 한 글자 등급\n" +
+                        "3) 이후: 번호 목록 3개를 작성. 각 항목은 '제목: 설명' 형식으로 한 줄씩 작성\n" +
+                        "4) 마크다운 강조(**)나 불릿 기호를 쓰지 말고 일반 텍스트만 사용\n" +
+                        "5) 구글 검색 결과를 적극 활용해 사실 기반으로 판단"
         ));
 
         for (MultipartFile file : files) {
@@ -395,6 +402,39 @@ public class UserController {
     private String extractGrade(String text) {
         Matcher matcher = GRADE_PATTERN.matcher(text);
         return matcher.find() ? matcher.group(1) : "C";
+    }
+
+    private String normalizeResultText(String text) {
+        if (text == null || text.isBlank()) {
+            return "인식 성공 기업: 없음\nC\n1. 분석 결과를 생성하지 못했습니다.";
+        }
+        return text.replace("**", "").trim();
+    }
+
+    private List<String> extractRecognizedCompanies(String resultText) {
+        if (resultText == null || resultText.isBlank()) {
+            return Collections.emptyList();
+        }
+        String firstLine = resultText.lines()
+                .findFirst()
+                .orElse("")
+                .trim();
+        if (!firstLine.startsWith("인식 성공 기업")) {
+            return Collections.emptyList();
+        }
+        int idx = firstLine.indexOf(":");
+        if (idx < 0 || idx + 1 >= firstLine.length()) {
+            return Collections.emptyList();
+        }
+        String namesPart = firstLine.substring(idx + 1).trim();
+        if (namesPart.isBlank() || "없음".equals(namesPart)) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(namesPart.split(","))
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .distinct()
+                .toList();
     }
 
     private String toStringOrEmpty(Object value) {

@@ -168,6 +168,11 @@ const Analyze = () => {
           <Typography variant="h5" fontWeight={800} gutterBottom>
             분석 결과: {analysis.grade} 등급
           </Typography>
+          {Array.isArray(analysis.recognizedCompanies) && analysis.recognizedCompanies.length > 0 && (
+            <Typography variant="body1" sx={{ mb: 1.5 }}>
+              인식 성공 기업: {analysis.recognizedCompanies.join(", ")}
+            </Typography>
+          )}
           <Typography variant="body1" sx={{ whiteSpace: "pre-line" }}>
             {analysis.result}
           </Typography>
