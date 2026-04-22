@@ -169,9 +169,14 @@ const Analyze = () => {
             분석 결과: {analysis.grade} 등급
           </Typography>
           {Array.isArray(analysis.recognizedCompanies) && analysis.recognizedCompanies.length > 0 && (
-            <Typography variant="body1" sx={{ mb: 1.5 }}>
-              인식 성공 기업: {analysis.recognizedCompanies.join(", ")}
-            </Typography>
+            <>
+              <Typography variant="body1" sx={{ mb: 0.5 }}>
+                기업정보: {analysis.recognizedCompanies.join(", ")}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                해당 기업의 공개 정보와 최근 평가 흐름을 바탕으로 분석했습니다.
+              </Typography>
+            </>
           )}
           <Typography variant="body1" sx={{ whiteSpace: "pre-line" }}>
             {analysis.result}

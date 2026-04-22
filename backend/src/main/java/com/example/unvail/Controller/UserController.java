@@ -29,6 +29,10 @@ public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
     private static final Pattern GRADE_PATTERN = Pattern.compile("\\b([A-F])\\b");
+    private static final Pattern NUMBERED_TITLE_PATTERN = Pattern.compile("^\\d+\\.\\s*제목\\s*[:：]?\\s*(.+)$");
+    private static final Pattern TITLE_ONLY_PATTERN = Pattern.compile("^제목\\s*[:：]?\\s*(.+)$");
+    private static final Pattern NUMBERED_LINE_PATTERN = Pattern.compile("^\\d+\\.\\s*(.+)$");
+    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("^설명\\s*[:：]?\\s*(.+)$");
     private final UserRepository userRepository;
     private final CommunityPostRepository communityPostRepository;
     private final ShopItemRepository shopItemRepository;
@@ -118,13 +122,14 @@ public class UserController {
         String normalizedResultText = normalizeResultText(resultText);
         String grade = extractGrade(resultText);
         List<String> recognizedCompanies = extractRecognizedCompanies(normalizedResultText);
+        String formattedResultText = formatResultText(normalizedResultText);
 
         user.setGeminiRemainingCalls(user.getGeminiRemainingCalls() - 1);
         userRepository.save(user);
 
         return Map.of(
                 "grade", grade,
-                "result", normalizedResultText,
+                "result", formattedResultText,
                 "recognizedCompanies", recognizedCompanies,
                 "remainingCalls", user.getGeminiRemainingCalls()
         );
@@ -409,6 +414,84 @@ public class UserController {
             return "인식 성공 기업: 없음\nC\n1. 분석 결과를 생성하지 못했습니다.";
         }
         return text.replace("**", "").trim();
+    }
+
+    private String formatResultText(String text) {
+        if (text == null || text.isBlank()) {
+            return "분석 결과를 생성하지 못했습니다.";
+        }
+
+        List<String> lines = text.lines()
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .toList();
+
+        List<String> blocks = new ArrayList<>();
+        String currentTitle = null;
+        StringBuilder currentBody = new StringBuilder();
+
+        for (String line : lines) {
+            if (line.startsWith("인식 성공 기업")) {
+                continue;
+            }
+            if (line.matches("^[A-F]$")) {
+                continue;
+            }
+
+            Matcher numberedTitle = NUMBERED_TITLE_PATTERN.matcher(line);
+            Matcher titleOnly = TITLE_ONLY_PATTERN.matcher(line);
+            Matcher numberedLine = NUMBERED_LINE_PATTERN.matcher(line);
+            Matcher description = DESCRIPTION_PATTERN.matcher(line);
+
+            if (numberedTitle.matches() || titleOnly.matches()) {
+                if (currentTitle != null) {
+                    blocks.add(buildSection(currentTitle, currentBody.toString()));
+                }
+                currentTitle = (numberedTitle.matches() ? numberedTitle.group(1) : titleOnly.group(1)).trim();
+                currentBody = new StringBuilder();
+                continue;
+            }
+
+            if (description.matches()) {
+                if (currentBody.length() > 0) currentBody.append("\n");
+                currentBody.append(description.group(1).trim());
+                continue;
+            }
+
+            if (numberedLine.matches()) {
+                if (currentTitle != null) {
+                    blocks.add(buildSection(currentTitle, currentBody.toString()));
+                }
+                currentTitle = numberedLine.group(1).trim();
+                currentBody = new StringBuilder();
+                continue;
+            }
+
+            if (currentTitle == null) {
+                currentTitle = line;
+            } else {
+                if (currentBody.length() > 0) currentBody.append("\n");
+                currentBody.append(line);
+            }
+        }
+
+        if (currentTitle != null) {
+            blocks.add(buildSection(currentTitle, currentBody.toString()));
+        }
+
+        if (blocks.isEmpty()) {
+            return "분석 결과를 정리하지 못했습니다.";
+        }
+        return String.join("\n\n", blocks);
+    }
+
+    private String buildSection(String title, String body) {
+        String cleanTitle = title == null ? "" : title.trim();
+        String cleanBody = body == null ? "" : body.trim();
+        if (cleanBody.isBlank()) {
+            cleanBody = "관련 근거를 확인 중입니다.";
+        }
+        return cleanTitle + "\n" + cleanBody;
     }
 
     private List<String> extractRecognizedCompanies(String resultText) {
